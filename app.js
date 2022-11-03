@@ -103,6 +103,7 @@ app.get('/api/users', (req, res) => usersController(res, null, null, false));
 app.get('/api/users/:id(\d+)', (req, res) => usersController(res, "UserID", req.params.id, false));
 app.get('/api/users/student', (req, res) => usersController(res, "UsertypeID", STUDENT, false));
 app.get('/api/users/staff', (req, res) => usersController(res, "UsertypeID", STAFF, false));
+app.get('/api/users/groups/:id', (req, res) => usersController(res, "GroupmemberGroupID", req.params.id, true));
 
 // Start server ----------------------------------
 const PORT = process.env.PORT || 5000;
