@@ -14,8 +14,22 @@ app.use(function (req, res, next) {
 });
 
 app.use(cors({ origin: '*' }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Controllers -----------------------------------
+
+const buildModulesInsertSql = (record) => {
+  let table = 'Modules';
+  let mutableFields = ['ModuleName', 'ModuleCode', 'ModuleLevel', 'ModuleYearID', 'ModuleLeaderID', 'ModuleImageURL'];
+  return `INSERT INTO ${table} SET
+            ModuleName="${record['ModuleName']}",
+            ModuleCode="${record['ModuleCode']}",
+            ModuleLevel=${record['ModuleLevel']},
+            ModuleYearID=${record['ModuleYearID']},
+            ModuleLeaderID=${record['ModuleLeaderID']},
+            ModuleImageURL="${record['ModuleImageURL']}" `;
+};
 
 const buildModulesSelectSql = (id, variant) => {
   let table = '((Modules LEFT JOIN Users ON ModuleLeaderID=UserID) LEFT JOIN Years ON ModuleYearID=YearID )';
@@ -43,12 +57,15 @@ const buildUsersSelectSql = (id, variant) => {
   let fields = ['UserID', 'UserFirstname', 'UserLastname', 'UserEmail', 'UserLevel', 'UserYearID', 'UserUsertypeID', 'UserImageURL', 'UsertypeName AS UserUsertypeName', 'YearName AS UserYearName'];
   let sql = '';
 
+  const STAFF = 1; // Primary key for staff type in Unibase Usertypes table
+  const STUDENT = 2; // Primary key for student type in Unibase Usertypes table
+
   switch (variant) {
     case 'student':
-      sql = `SELECT ${fields} FROM ${table} WHERE UserUsertypeID=2`;
+      sql = `SELECT ${fields} FROM ${table} WHERE UserUsertypeID=${STUDENT}`;
       break;
     case 'staff':
-      sql = `SELECT ${fields} FROM ${table} WHERE UserUsertypeID=1`;
+      sql = `SELECT ${fields} FROM ${table} WHERE UserUsertypeID=${STAFF}`;
       break;
     case 'groups':
       table = `Groupmembers INNER JOIN ${table} ON Groupmembers.GroupmemberUserID=Users.UserID`;
@@ -60,6 +77,23 @@ const buildUsersSelectSql = (id, variant) => {
   }
   
   return sql;
+};
+
+const create = async (sql) => {
+  try {
+    const status = await database.query(sql);
+
+    const recoverRecordSql = buildModulesSelectSql(status[0].insertId, null);
+
+    const { isSuccess, result, message } = await read(recoverRecordSql);
+        
+    return isSuccess
+      ? { isSuccess: true, result: result, message: 'Record successfully recovered' }
+      : { isSuccess: false, result: null, message: `Failed to recover the inserted record: ${message}` };
+  }
+  catch (error) {
+    return { isSuccess: false, result: null, message: `Failed to execute query: ${error.message}` };
+  }
 };
 
 const read = async (sql) => {
@@ -86,6 +120,18 @@ const getModulesController = async (res, id, variant) => {
   res.status(200).json(result);
 };
 
+const postModulesController = async (req, res) => {
+  // Validate request
+
+  // Access data
+  const sql = buildModulesInsertSql(req.body);
+  const { isSuccess, result, message: accessorMessage } = await create(sql);
+  if (!isSuccess) return res.status(404).json({ message: accessorMessage });
+  
+  // Response to request
+  res.status(201).json(result);
+};
+
 const getUsersController = async (res, id, variant) => {
   // Validate request
 
@@ -100,16 +146,18 @@ const getUsersController = async (res, id, variant) => {
 
 // Endpoints -------------------------------------
 // Modules
-app.get('/api/modules', (req, res) =>            getModulesController(res, null,          null));
-app.get('/api/modules/:id(\\d+)', (req, res) =>  getModulesController(res, req.params.id, null));
+app.get('/api/modules', (req, res) => getModulesController(res, null, null));
+app.get('/api/modules/:id(\\d+)', (req, res) => getModulesController(res, req.params.id, null));
 app.get('/api/modules/leader/:id', (req, res) => getModulesController(res, req.params.id, 'leader'));
-app.get('/api/modules/users/:id', (req, res) =>  getModulesController(res, req.params.id, 'users' ));
+app.get('/api/modules/users/:id', (req, res) => getModulesController(res, req.params.id, 'users'));
+
+app.post('/api/modules', postModulesController);
 
 // Users
-app.get('/api/users', (req, res) =>            getUsersController(res, null,          null));
-app.get('/api/users/:id(\\d+)', (req, res) =>  getUsersController(res, req.params.id, null));
-app.get('/api/users/student', (req, res) =>    getUsersController(res, null,          'student'));
-app.get('/api/users/staff', (req, res) =>      getUsersController(res, null,          'staff'));
+app.get('/api/users', (req, res) => getUsersController(res, null, null));
+app.get('/api/users/:id(\\d+)', (req, res) => getUsersController(res, req.params.id, null));
+app.get('/api/users/student', (req, res) => getUsersController(res, null, 'student'));
+app.get('/api/users/staff', (req, res) => getUsersController(res, null, 'staff'));
 app.get('/api/users/groups/:id', (req, res) => getUsersController(res, req.params.id, 'groups'));
 
 // Start server ----------------------------------
