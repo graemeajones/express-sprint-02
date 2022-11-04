@@ -19,16 +19,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // Controllers -----------------------------------
 
+const buildSetFields = (fields) => fields.reduce((setSQL, field, index) =>
+  setSQL + `${field}=:${field}` + ((index === fields.length - 1) ? '' : ', '), 'SET ');
+
+
 const buildModulesInsertSql = (record) => {
   let table = 'Modules';
   let mutableFields = ['ModuleName', 'ModuleCode', 'ModuleLevel', 'ModuleYearID', 'ModuleLeaderID', 'ModuleImageURL'];
-  return `INSERT INTO ${table} SET
-            ModuleName="${record['ModuleName']}",
-            ModuleCode="${record['ModuleCode']}",
-            ModuleLevel=${record['ModuleLevel']},
-            ModuleYearID=${record['ModuleYearID']},
-            ModuleLeaderID=${record['ModuleLeaderID']},
-            ModuleImageURL="${record['ModuleImageURL']}" `;
+  return `INSERT INTO ${table} ` + buildSetFields(mutableFields);
 };
 
 const buildModulesSelectSql = (id, variant) => {
@@ -79,9 +77,9 @@ const buildUsersSelectSql = (id, variant) => {
   return sql;
 };
 
-const create = async (sql) => {
+const create = async (sql,record) => {
   try {
-    const status = await database.query(sql);
+    const status = await database.query(sql,record);
 
     const recoverRecordSql = buildModulesSelectSql(status[0].insertId, null);
 
@@ -125,7 +123,7 @@ const postModulesController = async (req, res) => {
 
   // Access data
   const sql = buildModulesInsertSql(req.body);
-  const { isSuccess, result, message: accessorMessage } = await create(sql);
+  const { isSuccess, result, message: accessorMessage } = await create(sql,req.body);
   if (!isSuccess) return res.status(404).json({ message: accessorMessage });
   
   // Response to request
