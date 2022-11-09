@@ -112,7 +112,7 @@ const getModulesController = async (res, id, variant) => {
   // Access data
   const sql = buildModulesSelectSql(id, variant);
   const { isSuccess, result, message: accessorMessage } = await read(sql);
-  if (!isSuccess) return res.status(400).json({ message: accessorMessage });
+  if (!isSuccess) return res.status(404).json({ message: accessorMessage });
   
   // Response to request
   res.status(200).json(result);
@@ -124,7 +124,7 @@ const postModulesController = async (req, res) => {
   // Access data
   const sql = buildModulesInsertSql(req.body);
   const { isSuccess, result, message: accessorMessage } = await create(sql,req.body);
-  if (!isSuccess) return res.status(404).json({ message: accessorMessage });
+  if (!isSuccess) return res.status(400).json({ message: accessorMessage });
   
   // Response to request
   res.status(201).json(result);
@@ -136,7 +136,7 @@ const getUsersController = async (res, id, variant) => {
   // Access data
   const sql = buildUsersSelectSql(id, variant);
   const { isSuccess, result, message: accessorMessage } = await read(sql);
-  if (!isSuccess) return res.status(400).json({ message: accessorMessage });
+  if (!isSuccess) return res.status(404).json({ message: accessorMessage });
   
   // Response to request
   res.status(200).json(result);
