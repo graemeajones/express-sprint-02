@@ -77,6 +77,20 @@ const buildUsersSelectSql = (id, variant) => {
   return sql;
 };
 
+const buildYearsSelectSql = (id, variant) => {
+  let table = 'Years';
+  let fields = ['YearID', 'YearName'];
+  let sql = '';
+
+  switch (variant) {
+    default:
+      sql = `SELECT ${fields} FROM ${table}`;
+      if (id) sql += ` WHERE ModuleID=${id}`;
+  }
+
+  return sql;
+};
+
 const create = async (sql,record) => {
   try {
     const status = await database.query(sql,record);
@@ -142,6 +156,18 @@ const getUsersController = async (res, id, variant) => {
   res.status(200).json(result);
 };
 
+const getYearsController = async (res, id, variant) => {
+  // Validate request
+
+  // Access data
+  const sql = buildYearsSelectSql(id, variant);
+  const { isSuccess, result, message: accessorMessage } = await read(sql);
+  if (!isSuccess) return res.status(404).json({ message: accessorMessage });
+  
+  // Response to request
+  res.status(200).json(result);
+};
+
 // Endpoints -------------------------------------
 // Modules
 app.get('/api/modules', (req, res) => getModulesController(res, null, null));
@@ -157,6 +183,10 @@ app.get('/api/users/:id(\\d+)', (req, res) => getUsersController(res, req.params
 app.get('/api/users/student', (req, res) => getUsersController(res, null, 'student'));
 app.get('/api/users/staff', (req, res) => getUsersController(res, null, 'staff'));
 app.get('/api/users/groups/:id', (req, res) => getUsersController(res, req.params.id, 'groups'));
+
+// Years
+app.get('/api/years', (req, res) => getYearsController(res, null, null));
+app.get('/api/years/:id', (req, res) => getYearsController(res, req.params.id, null));
 
 // Start server ----------------------------------
 const PORT = process.env.PORT || 5000;
