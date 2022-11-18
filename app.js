@@ -22,11 +22,34 @@ app.use(express.urlencoded({ extended: true }));
 const buildSetFields = (fields) => fields.reduce((setSQL, field, index) =>
   setSQL + `${field}=:${field}` + ((index === fields.length - 1) ? '' : ', '), 'SET ');
 
+  const buildModulemembersInsertSql = (record) => {
+    let table = 'Modulemembers';
+    let mutableFields = ['ModulememberModuleID', 'ModulememberUserID'];
+    return `INSERT INTO ${table} ` + buildSetFields(mutableFields);
+  };
 
 const buildModulesInsertSql = (record) => {
   let table = 'Modules';
   let mutableFields = ['ModuleName', 'ModuleCode', 'ModuleLevel', 'ModuleYearID', 'ModuleLeaderID', 'ModuleImageURL'];
   return `INSERT INTO ${table} ` + buildSetFields(mutableFields);
+};
+
+const buildModulemembersSelectSql = (id, variant) => {
+  let table = '((Modulemembers LEFT JOIN Users ON ModulememberUserID=UserID) LEFT JOIN Modules ON ModulememberModuleID=ModuleID )';
+  let fields = [
+    'ModulememberID',
+    'ModuleID', 'CONCAT(ModuleCode," ",ModuleName) AS ModuleName',
+    'UserID', 'CONCAT(UserLastname," ",UserLastname) AS UserName'
+  ];
+  let sql = '';
+
+  switch (variant) {
+    default:
+      sql = `SELECT ${fields} FROM ${table}`;
+      if (id) sql += ` WHERE ModulememberID=${id}`;
+  }
+
+  return sql;
 };
 
 const buildModulesSelectSql = (id, variant) => {
@@ -91,7 +114,24 @@ const buildYearsSelectSql = (id, variant) => {
   return sql;
 };
 
-const create = async (sql,record) => {
+const createModulemembers = async (sql,record) => {
+  try {
+    const status = await database.query(sql,record);
+
+    const recoverRecordSql = buildModulemembersSelectSql(status[0].insertId, null);
+
+    const { isSuccess, result, message } = await read(recoverRecordSql);
+        
+    return isSuccess
+      ? { isSuccess: true, result: result, message: 'Record successfully recovered' }
+      : { isSuccess: false, result: null, message: `Failed to recover the inserted record: ${message}` };
+  }
+  catch (error) {
+    return { isSuccess: false, result: null, message: `Failed to execute query: ${error.message}` };
+  }
+};
+
+const createModules = async (sql,record) => {
   try {
     const status = await database.query(sql,record);
 
@@ -120,6 +160,30 @@ const read = async (sql) => {
   }
 };
 
+const postModulemembersController = async (req, res) => {
+  // Validate request
+
+  // Access data
+  const sql = buildModulemembersInsertSql(req.body);
+  const { isSuccess, result, message: accessorMessage } = await createModulemembers(sql,req.body);
+  if (!isSuccess) return res.status(400).json({ message: accessorMessage });
+  
+  // Response to request
+  res.status(201).json(result);
+};
+
+const getModulemembersController = async (res, id, variant) => {
+  // Validate request
+
+  // Access data
+  const sql = buildModulemembersSelectSql(id, variant);
+  const { isSuccess, result, message: accessorMessage } = await read(sql);
+  if (!isSuccess) return res.status(404).json({ message: accessorMessage });
+  
+  // Response to request
+  res.status(200).json(result);
+};
+
 const getModulesController = async (res, id, variant) => {
   // Validate request
 
@@ -137,7 +201,7 @@ const postModulesController = async (req, res) => {
 
   // Access data
   const sql = buildModulesInsertSql(req.body);
-  const { isSuccess, result, message: accessorMessage } = await create(sql,req.body);
+  const { isSuccess, result, message: accessorMessage } = await createModules(sql,req.body);
   if (!isSuccess) return res.status(400).json({ message: accessorMessage });
   
   // Response to request
@@ -169,6 +233,12 @@ const getYearsController = async (res, id, variant) => {
 };
 
 // Endpoints -------------------------------------
+// Modulemembers
+app.get('/api/modulemembers', (req, res) => getModulemembersController(res,null,null));
+app.get('/api/modulemembers/:id', (req, res) => getModulemembersController(res,req.params.id,null));
+
+app.post('/api/modulemembers', postModulemembersController);
+
 // Modules
 app.get('/api/modules', (req, res) => getModulesController(res, null, null));
 app.get('/api/modules/:id(\\d+)', (req, res) => getModulesController(res, req.params.id, null));
